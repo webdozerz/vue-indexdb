@@ -1,5 +1,6 @@
 import { IDBError } from '../utils/errors'
 import { withRetry } from '../utils/retry'
+import { toPlainData } from '../utils/toPlainData'
 import type { RetryConfig } from '../types'
 
 let dbInstance: IDBDatabase | null = null
@@ -73,8 +74,9 @@ export async function idbGet(key: string): Promise<any> {
 }
 
 export async function idbPut(key: string, data: any): Promise<void> {
+  const plain = toPlainData(data)
   await withRetry(
-    () => txRequest('readwrite', (s) => s.put(data, key)),
+    () => txRequest('readwrite', (s) => s.put(plain, key)),
     retryConfig_,
   )
 }
