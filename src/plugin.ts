@@ -30,7 +30,7 @@ export const VueOfflineSync: Plugin = {
     const store = useOfflineSyncStore()
 
     try {
-      await initIDB(opts.dbName, opts.storeName)
+      await initIDB(opts.dbName, opts.storeName, opts.retryConfig)
       store.setIDBStatus('connected')
       emitHook('onIDBReady')
     } catch (e) {

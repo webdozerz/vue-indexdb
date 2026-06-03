@@ -232,7 +232,8 @@ app.use(VueOfflineSync, {
 1. When offline, `save()` stores data in IDB and creates a `SyncOperation` in the pending queue
 2. When internet returns, `onSyncNeeded(operations)` is called automatically
 3. Return `SyncResult[]` — the package updates operation statuses based on results
-4. Failed operations are retried up to `retryConfig.maxRetries` (default: 3)
+4. Failed sync operations are retried up to `retryConfig.maxRetries` (default: 3)
+5. Failed local IDB writes (`save` / `remove`) use the same `retryConfig` with exponential backoff
 
 **Different endpoints per key:**
 
@@ -260,7 +261,7 @@ interface PluginOptions {
   dbName?: string          // default: 'vue-offline-sync'
   storeName?: string       // default: 'sync-data'
   onSyncNeeded?: (operations: SyncOperation[]) => Promise<SyncResult[]> | SyncResult[]
-  retryConfig?: { maxRetries: number; retryDelay: number }  // default: { maxRetries: 3, retryDelay: 1000 }
+  retryConfig?: { maxRetries: number; retryDelay: number }  // sync + local IDB ops; default: { maxRetries: 3, retryDelay: 1000 }
   debounceMs?: number      // default: 300
   hooks?: GlobalHooks      // global event callbacks
 }
@@ -351,6 +352,34 @@ app.use(VueOfflineSync, {
   },
 })
 ```
+
+## Known limitations & edge cases
+
+### Multiple tabs
+
+IndexedDB does not lock writes across browser tabs. If two tabs update the same key, the last write wins. For conflict handling, add versioning in your data model (e.g. `updatedAt` or a `version` field) in the application layer.
+
+### Tab closed during sync
+
+The pending sync queue lives in Pinia memory and is lost when the tab closes. Data already written to IndexedDB remains. On the next online session, only operations still in the queue (or re-queued by your app) are synced. Use idempotent server APIs to avoid duplicate side effects.
+
+### Large payloads
+
+There is no built-in chunking or pagination. Split large datasets in `onSyncNeeded` (e.g. batch requests per key or chunk size).
+
+### Schema changes
+
+The package does not run complex IndexedDB schema migrations. If you change the object store structure, use a new `dbName` or clear the database manually:
+
+```ts
+indexedDB.deleteDatabase('vue-offline-sync')
+```
+
+Experimental v1 dev databases are not migrated automatically; delete the database if upgrade issues occur.
+
+### Retries
+
+`retryConfig` applies to both server sync (`onSyncNeeded`) and local IndexedDB `put`/`delete` operations. UI save status (`saved` / `error`) is unchanged: retries happen before the status is set.
 
 ## License
 

@@ -1,8 +1,11 @@
 import { IDBError } from '../utils/errors'
+import { withRetry } from '../utils/retry'
+import type { RetryConfig } from '../types'
 
 let dbInstance: IDBDatabase | null = null
 let dbName_ = 'vue-offline-sync'
 let storeName_ = 'sync-data'
+let retryConfig_: RetryConfig = { maxRetries: 3, retryDelay: 1000 }
 
 const IDB_VERSION = 2
 
@@ -10,12 +13,8 @@ function openDB(dbName: string, storeName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(dbName, IDB_VERSION)
 
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result
-
-      if (event.oldVersion === 1 && db.objectStoreNames.contains(storeName)) {
-        db.deleteObjectStore(storeName)
-      }
 
       if (!db.objectStoreNames.contains(storeName)) {
         db.createObjectStore(storeName)
@@ -27,9 +26,16 @@ function openDB(dbName: string, storeName: string): Promise<IDBDatabase> {
   })
 }
 
-export async function initIDB(dbName: string, storeName: string): Promise<IDBDatabase> {
+export async function initIDB(
+  dbName: string,
+  storeName: string,
+  retryConfig?: RetryConfig,
+): Promise<IDBDatabase> {
   dbName_ = dbName
   storeName_ = storeName
+  if (retryConfig) {
+    retryConfig_ = retryConfig
+  }
   dbInstance = await openDB(dbName, storeName)
   return dbInstance
 }
@@ -68,12 +74,18 @@ export async function idbGet(key: string): Promise<any> {
 }
 
 export async function idbPut(key: string, data: any): Promise<void> {
-  await txRequest('readwrite', (s) => s.put(data, key))
+  await withRetry(
+    () => txRequest('readwrite', (s) => s.put(data, key)),
+    retryConfig_,
+  )
 }
 
 export async function idbDelete(key: string): Promise<void> {
   if (!isValidIDBKey(key)) return
-  await txRequest('readwrite', (s) => s.delete(key))
+  await withRetry(
+    () => txRequest('readwrite', (s) => s.delete(key)),
+    retryConfig_,
+  )
 }
 
 export async function idbGetAll(): Promise<{ key: string; value: any }[]> {
