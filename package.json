@@ -57,9 +57,9 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/IliyaAndrushov/vue-indexdb.git"
+    "url": "git+https://github.com/webdozerz/vue-indexdb.git"
   },
-  "homepage": "https://github.com/IliyaAndrushov/vue-indexdb#readme",
+  "homepage": "https://github.com/webdozerz/vue-indexdb#readme",
   "publishConfig": {
     "access": "public"
   }
