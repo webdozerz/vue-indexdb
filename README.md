@@ -262,7 +262,7 @@ interface PluginOptions {
   storeName?: string       // default: 'sync-data'
   onSyncNeeded?: (operations: SyncOperation[]) => Promise<SyncResult[]> | SyncResult[]
   retryConfig?: { maxRetries: number; retryDelay: number }  // sync + local IDB ops; default: { maxRetries: 3, retryDelay: 1000 }
-  debounceMs?: number      // default: 300
+  debounceMs?: number      // debounce auto-sync on `online` (not `syncAll`); default: 300, set 0 to disable
   hooks?: GlobalHooks      // global event callbacks
 }
 ```
@@ -379,7 +379,19 @@ Experimental v1 dev databases are not migrated automatically; delete the databas
 
 ### Retries
 
-`retryConfig` applies to both server sync (`onSyncNeeded`) and local IndexedDB `put`/`delete` operations. UI save status (`saved` / `error`) is unchanged: retries happen before the status is set.
+`retryConfig` applies to:
+
+- **Local IDB** (`put` / `delete`): immediate retries with exponential backoff before save status becomes `error`.
+- **Server sync (`onSyncNeeded`)**:
+  - **Immediate:** if `onSyncNeeded` throws, the whole batch is retried up to `maxRetries` with backoff, then each operation is marked `failed` and `retries` is incremented.
+  - **Deferred:** if `onSyncNeeded` returns `{ success: false }` for a key, `retries` is incremented and that operation is retried on the next `online` event or `syncAll`, while `retries < maxRetries`.
+  - Operations with `retries >= maxRetries` stay in the queue as `failed` and are not synced automatically.
+
+UI save status (`saved` / `error`) is unchanged: local retries happen before the status is set.
+
+### Singleton IDB service
+
+`initIDB` stores `dbName`, `storeName`, and `retryConfig` in module-level state. One plugin instance per app is supported; a second independent IDB configuration in the same app is not supported.
 
 ## License
 

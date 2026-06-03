@@ -63,7 +63,6 @@ function isValidIDBKey(key: unknown): boolean {
   if (typeof key === 'string' && key.length > 0) return true
   if (typeof key === 'number' && Number.isFinite(key)) return true
   if (key instanceof Date) return true
-  if (Array.isArray(key)) return true
   return false
 }
 

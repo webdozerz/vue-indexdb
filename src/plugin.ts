@@ -10,6 +10,8 @@ import { setGlobalHooks, emitHook } from './composables/useOfflineSyncHooks'
 import { IDBError } from './utils/errors'
 import type { App, Plugin } from 'vue'
 import { debounce } from './utils/debounce'
+import { withRetry } from './utils/retry'
+import { normalizeSyncResults } from './utils/normalizeSyncResults'
 
 const DEFAULT_OPTIONS: Required<Pick<PluginOptions, 'dbName' | 'storeName' | 'retryConfig' | 'debounceMs'>> & {
   onSyncNeeded?: PluginOptions['onSyncNeeded']
@@ -42,27 +44,35 @@ export const VueOfflineSync: Plugin = {
 
     store.setNetworkStatus(navigator.onLine ? 'online' : 'offline')
 
+    const scheduleSync =
+      opts.debounceMs > 0
+        ? debounce(() => {
+            if (store.isOnline && opts.onSyncNeeded) {
+              performSync(store, opts.onSyncNeeded, opts.retryConfig)
+            }
+          }, opts.debounceMs)
+        : () => {
+            if (store.isOnline && opts.onSyncNeeded) {
+              performSync(store, opts.onSyncNeeded, opts.retryConfig)
+            }
+          }
+
     startNetworkMonitor()
 
     subscribeToNetwork((status) => {
       store.setNetworkStatus(status)
       emitHook('onNetworkChange', status === 'online')
 
-      if (status === 'online' && store.pendingCount > 0 && opts.onSyncNeeded) {
-        performSync(store, opts.onSyncNeeded, opts.retryConfig)
+      if (status === 'online' && opts.onSyncNeeded) {
+        scheduleSync()
       }
     })
 
-    const debouncedSync = opts.debounceMs > 0
-      ? debounce(() => {
-          if (store.isOnline && store.pendingCount > 0 && opts.onSyncNeeded) {
-            performSync(store, opts.onSyncNeeded, opts.retryConfig)
-          }
-        }, opts.debounceMs)
-      : undefined
-
     app.provide('vue-offline-sync-options', opts)
-    app.provide('vue-offline-sync-debounced', debouncedSync)
+    app.provide(
+      'vue-offline-sync-debounced',
+      opts.debounceMs > 0 ? scheduleSync : undefined,
+    )
   },
 }
 
@@ -73,24 +83,35 @@ export async function performSync(
 ): Promise<void> {
   if (store.syncStatus === 'syncing') return
 
-  const operations = store.pendingOperations.filter(
-    (op) => op.status === 'pending' || (op.status === 'failed' && op.retries < retryConfig.maxRetries),
+  const operationIds = new Set(
+    store.pendingOperations
+      .filter(
+        (op) =>
+          op.status === 'pending'
+          || (op.status === 'failed' && op.retries < retryConfig.maxRetries),
+      )
+      .map((op) => op.id),
   )
+
+  const operations = store.pendingOperations.filter((op) => operationIds.has(op.id))
 
   if (operations.length === 0) return
 
   store.setSyncStatus('syncing')
   emitHook('onSyncStart', operations)
 
-  for (const op of operations) {
-    const idx = store.pendingOperations.findIndex((o) => o.id === op.id)
-    if (idx >= 0) {
-      store.pendingOperations[idx].status = 'syncing'
+  store.pendingOperations.forEach((op) => {
+    if (operationIds.has(op.id)) {
+      op.status = 'syncing'
     }
-  }
+  })
 
   try {
-    const results = await onSyncNeeded(operations)
+    const raw = await withRetry(
+      () => Promise.resolve(onSyncNeeded(operations)),
+      retryConfig,
+    )
+    const results = normalizeSyncResults(raw, operations)
     store.processSyncResults(results)
 
     const successes = results.filter((r) => r.success)
@@ -103,8 +124,13 @@ export async function performSync(
       emitHook('onSyncError', failures)
     }
   } catch (e) {
-    store.setSyncStatus('error')
     const error = e instanceof Error ? e : new Error(String(e))
-    emitHook('onSyncError', operations.map((op) => ({ key: op.key, success: false, error })))
+    const failures = operations.map((op) => ({
+      key: op.key,
+      success: false as const,
+      error,
+    }))
+    store.processSyncResults(failures)
+    emitHook('onSyncError', failures)
   }
 }
