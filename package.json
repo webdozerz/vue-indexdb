@@ -23,7 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "peerDependencies": {
     "pinia": ">=2.0.0",
@@ -53,5 +54,13 @@
     "persistence",
     "sync"
   ],
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IliyaAndrushov/vue-indexdb.git"
+  },
+  "homepage": "https://github.com/IliyaAndrushov/vue-indexdb#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }
