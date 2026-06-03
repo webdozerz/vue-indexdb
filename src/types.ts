@@ -61,12 +61,6 @@ export interface KeyHooks {
   onSyncError?: (error: Error) => void
 }
 
-export interface IDBEntry {
-  key: string
-  data: any
-  timestamp: number
-}
-
 export interface StoreState {
   networkStatus: NetworkStatus
   idbStatus: IDBStatus

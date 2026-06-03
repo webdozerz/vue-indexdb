@@ -33,6 +33,7 @@ describe('idb service', () => {
     const all = await idbGetAll()
     expect(all).toHaveLength(2)
     expect(all.map((e) => e.key).sort()).toEqual(['key1', 'key2'])
+    expect(all.find((e) => e.key === 'key1')!.value).toBe('a')
   })
 
   it('should get all keys', async () => {
@@ -57,17 +58,19 @@ describe('idb service', () => {
     expect(data).toBe('new')
   })
 
-  it('should store any type of data', async () => {
+  it('should store raw data without wrapping', async () => {
     await idbPut('string', 'hello')
     await idbPut('number', 42)
     await idbPut('boolean', true)
     await idbPut('null', null)
     await idbPut('array', [1, 2, 3])
+    await idbPut('object', { foo: 'bar' })
 
     expect(await idbGet('string')).toBe('hello')
     expect(await idbGet('number')).toBe(42)
     expect(await idbGet('boolean')).toBe(true)
     expect(await idbGet('null')).toBeNull()
     expect(await idbGet('array')).toEqual([1, 2, 3])
+    expect(await idbGet('object')).toEqual({ foo: 'bar' })
   })
 })

@@ -1,18 +1,24 @@
-import type { IDBEntry } from '../types'
 import { IDBError } from '../utils/errors'
 
 let dbInstance: IDBDatabase | null = null
 let dbName_ = 'vue-offline-sync'
 let storeName_ = 'sync-data'
 
+const IDB_VERSION = 2
+
 function openDB(dbName: string, storeName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(dbName, 1)
+    const request = indexedDB.open(dbName, IDB_VERSION)
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result
+
+      if (event.oldVersion === 1 && db.objectStoreNames.contains(storeName)) {
+        db.deleteObjectStore(storeName)
+      }
+
       if (!db.objectStoreNames.contains(storeName)) {
-        db.createObjectStore(storeName, { keyPath: 'key' })
+        db.createObjectStore(storeName)
       }
     }
 
@@ -47,22 +53,48 @@ function txRequest(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBR
   })
 }
 
+function isValidIDBKey(key: unknown): boolean {
+  if (typeof key === 'string' && key.length > 0) return true
+  if (typeof key === 'number' && Number.isFinite(key)) return true
+  if (key instanceof Date) return true
+  if (Array.isArray(key)) return true
+  return false
+}
+
 export async function idbGet(key: string): Promise<any> {
-  const entry = (await txRequest('readonly', (s) => s.get(key))) as IDBEntry | undefined
-  return entry?.data ?? null
+  if (!isValidIDBKey(key)) return null
+  const result = await txRequest('readonly', (s) => s.get(key))
+  return result ?? null
 }
 
 export async function idbPut(key: string, data: any): Promise<void> {
-  const entry: IDBEntry = { key, data, timestamp: Date.now() }
-  await txRequest('readwrite', (s) => s.put(entry))
+  await txRequest('readwrite', (s) => s.put(data, key))
 }
 
 export async function idbDelete(key: string): Promise<void> {
+  if (!isValidIDBKey(key)) return
   await txRequest('readwrite', (s) => s.delete(key))
 }
 
-export async function idbGetAll(): Promise<IDBEntry[]> {
-  return (await txRequest('readonly', (s) => s.getAll())) as IDBEntry[]
+export async function idbGetAll(): Promise<{ key: string; value: any }[]> {
+  return new Promise((resolve, reject) => {
+    const db = getDB()
+    const tx = db.transaction(storeName_, 'readonly')
+    const store = tx.objectStore(storeName_)
+    const request = store.openCursor()
+    const entries: { key: string; value: any }[] = []
+
+    request.onsuccess = () => {
+      const cursor = request.result
+      if (cursor) {
+        entries.push({ key: cursor.key as string, value: cursor.value })
+        cursor.continue()
+      } else {
+        resolve(entries)
+      }
+    }
+    request.onerror = () => reject(new IDBError('IDB openCursor failed', request.error))
+  })
 }
 
 export async function idbGetAllKeys(): Promise<string[]> {

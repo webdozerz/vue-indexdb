@@ -21,6 +21,5 @@ export type {
   GlobalHooks,
   UseOfflineSyncOptions,
   KeyHooks,
-  IDBEntry,
   StoreState,
 } from './types'
