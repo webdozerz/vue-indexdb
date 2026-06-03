@@ -1,0 +1,57 @@
+{
+  "name": "vue-indexdb-sync",
+  "version": "0.1.0",
+  "description": "Vue 3 plugin for offline-first IndexedDB persistence with Pinia reactivity",
+  "type": "module",
+  "main": "./dist/vue-indexdb-sync.cjs",
+  "module": "./dist/vue-indexdb-sync.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/vue-indexdb-sync.js",
+      "require": "./dist/vue-indexdb-sync.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "peerDependencies": {
+    "pinia": ">=2.0.0",
+    "vue": ">=3.3.0"
+  },
+  "devDependencies": {
+    "@pinia/testing": "^0.1.3",
+    "@types/node": "^22.15.0",
+    "@vitejs/plugin-vue": "^5.2.0",
+    "fake-indexeddb": "^6.0.0",
+    "happy-dom": "^17.0.0",
+    "pinia": "^2.3.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0",
+    "vite-plugin-dts": "^4.5.0",
+    "vitest": "^3.1.0",
+    "vue": "^3.5.0",
+    "vue-tsc": "^2.2.0"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "pinia",
+    "indexeddb",
+    "offline",
+    "offline-first",
+    "persistence",
+    "sync"
+  ],
+  "license": "Apache-2.0"
+}
